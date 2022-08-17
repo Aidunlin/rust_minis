@@ -1,18 +1,22 @@
-use crate::{util, Cell, Player, PlayerType};
+use crate::{util, Cell, Key, Player, PlayerType, Ship};
 
 pub struct Game {
     human: Player,
     computer: Player,
+    board_size: usize,
 }
 
 impl Game {
     pub fn new(board_size: usize) -> Self {
-        let mut game = Self {
+        Self {
             human: Player::new(board_size, PlayerType::Human),
             computer: Player::new(board_size, PlayerType::Computer),
-        };
+            board_size,
+        }
+    }
 
-        game.computer.place_ships_randomly();
+    pub fn play(&mut self) {
+        self.computer.place_ships_randomly();
 
         loop {
             util::clear_console();
@@ -22,21 +26,17 @@ impl Game {
 
             match util::input_number() {
                 1 => {
-                    game.human.place_ships_manually();
+                    self.human.place_ships_manually();
                     break;
                 }
                 2 => {
-                    game.human.place_ships_randomly();
+                    self.human.place_ships_randomly();
                     break;
                 }
                 _ => {}
             }
         }
 
-        game
-    }
-
-    pub fn play(&mut self) {
         let winner = loop {
             if self.human_turn() {
                 break "You";
@@ -48,6 +48,7 @@ impl Game {
             }
             util::pause_console();
         };
+
         println!("{} won!", winner);
         util::pause_console();
     }
@@ -64,15 +65,42 @@ impl Game {
         loop {
             self.print_boards();
             println!("YOUR TURN");
+            println!("Choose your target");
 
-            println!("Enter an x and y value that represents your target:");
-            let x = util::input_number::<usize>().clamp(0, self.human.board.len() - 1);
-            let y = util::input_number::<usize>().clamp(0, self.human.board.len() - 1);
+            let mut x = self.board_size / 2;
+            let mut y = self.board_size / 2;
 
-            if self.handle_turn(PlayerType::Human, x, y) {
-                break;
-            } else {
-                println!("Invalid location at {}, {}!", x, y);
+            loop {
+                util::move_cursor(x * 2 + 2, y + 2);
+                match util::read_key() {
+                    Key::ArrowLeft => {
+                        if x > 0 {
+                            x -= 1;
+                        }
+                    }
+                    Key::ArrowRight => {
+                        if x < self.board_size - 1 {
+                            x += 1;
+                        }
+                    }
+                    Key::ArrowUp => {
+                        if y > 0 {
+                            y -= 1;
+                        }
+                    }
+                    Key::ArrowDown => {
+                        if y < self.board_size - 1 {
+                            y += 1;
+                        }
+                    }
+                    Key::Enter => break,
+                    _ => {}
+                }
+            }
+
+            match self.try_turn(self.human.player_type, x, y) {
+                Ok(_) => break,
+                Err(_) => println!("Invalid location at {}, {}!", x, y),
             }
         }
 
@@ -84,9 +112,9 @@ impl Game {
         println!("COMPUTER'S TURN");
 
         loop {
-            let x = util::rand_range(0, self.computer.board.len());
-            let y = util::rand_range(0, self.computer.board.len());
-            if self.handle_turn(PlayerType::Computer, x, y) {
+            let x = util::rand_range(0, self.board_size);
+            let y = util::rand_range(0, self.board_size);
+            if self.try_turn(self.computer.player_type, x, y).is_ok() {
                 break;
             }
         }
@@ -94,51 +122,48 @@ impl Game {
         self.human.all_ships_sunk()
     }
 
-    pub fn handle_turn(&mut self, player: PlayerType, x: usize, y: usize) -> bool {
-        let mut found_place = true;
-
-        let opponent = match player {
+    pub fn try_turn(&mut self, player_type: PlayerType, x: usize, y: usize) -> Result<(), ()> {
+        let opponent = match player_type {
             PlayerType::Human => &mut self.computer,
             PlayerType::Computer => &mut self.human,
         };
 
-        if opponent.board[y][x] == Cell::Empty {
-            opponent.board[y][x] = Cell::Miss;
-
-            match player {
-                PlayerType::Human => println!("You missed at {}, {}!", x, y),
-                PlayerType::Computer => println!("Computer missed at {}, {}!", x, y),
+        match opponent.board[y][x] {
+            Cell::Hit | Cell::Miss => return Err(()),
+            Cell::Empty => {
+                opponent.board[y][x] = Cell::Miss;
+                self.print_boards();
+                Game::miss_message(player_type, x, y);
             }
-        } else if opponent.board[y][x] == Cell::Hit || opponent.board[y][x] == Cell::Miss {
-            found_place = false;
-        } else {
-            for i in 0..opponent.ships.len() {
-                if opponent.board[y][x] == opponent.ships[i].cell {
-                    opponent.board[y][x] = Cell::Hit;
-                    opponent.ships[i].hits += 1;
-
-                    let verb = match opponent.ships[i].hits >= opponent.ships[i].size {
-                        true => {
-                            opponent.ships[i].sunk = true;
-                            "SUNK"
-                        }
-                        false => "hit",
-                    };
-
-                    match player {
-                        PlayerType::Human => println!(
-                            "You {} computer's {} at {}, {}!",
-                            verb, opponent.ships[i].name, x, y
-                        ),
-                        PlayerType::Computer => println!(
-                            "Computer {} your {} at {}, {}!",
-                            verb, opponent.ships[i].name, x, y
-                        ),
+            _ => {
+                for ship in opponent.ships.iter_mut() {
+                    if opponent.board[y][x] == ship.cell {
+                        opponent.board[y][x] = Cell::Hit;
+                        ship.hits += 1;
+                        Game::hit_message(*ship, player_type, x, y);
                     }
                 }
             }
         }
 
-        found_place
+        Ok(())
+    }
+
+    pub fn miss_message(player_type: PlayerType, x: usize, y: usize) {
+        match player_type {
+            PlayerType::Human => println!("You missed at {}, {}!", x, y),
+            PlayerType::Computer => println!("Computer missed at {}, {}!", x, y),
+        }
+    }
+
+    pub fn hit_message(ship: Ship, player_type: PlayerType, x: usize, y: usize) {
+        let verb = if ship.sunk() { "SUNK" } else { "hit" };
+
+        match player_type {
+            PlayerType::Human => println!("You {} computer's {} at {}, {}!", verb, ship.name, x, y),
+            PlayerType::Computer => {
+                println!("Computer {} your {} at {}, {}!", verb, ship.name, x, y)
+            }
+        }
     }
 }

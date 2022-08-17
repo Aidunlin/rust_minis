@@ -5,6 +5,7 @@ pub enum Axis {
     Vertical,
 }
 
+#[derive(Clone, Copy)]
 pub enum PlayerType {
     Human,
     Computer,
@@ -61,11 +62,11 @@ impl Player {
     }
 
     pub fn place_ships_manually(&mut self) {
-        for i in 0..self.ships.len() {
+        for ship in self.ships.clone() {
             loop {
-                console::Term::stdout().clear_screen().unwrap();
+                util::clear_console();
                 println!("SHIP SETUP");
-                println!("{} ({} cells)", self.ships[i].name, self.ships[i].size);
+                println!("{} ({} cells)", ship.name, ship.size);
                 self.print_board(false);
 
                 println!("Enter an axis (0 for horizontal, 1 for vertical),");
@@ -78,88 +79,78 @@ impl Player {
 
                 let axis = match axis {
                     0 => {
-                        x = x.clamp(0, self.board.len() - self.ships[i].size);
+                        x = x.clamp(0, self.board.len() - ship.size);
                         y = y.clamp(0, self.board.len() - 1);
                         Axis::Horizontal
                     }
                     1 => {
                         x = x.clamp(0, self.board.len() - 1);
-                        y = y.clamp(0, self.board.len() - self.ships[i].size);
+                        y = y.clamp(0, self.board.len() - ship.size);
                         Axis::Vertical
                     }
                     _ => continue,
                 };
 
-                if self.place_ship(i, axis, x, y) {
-                    break;
-                } else {
-                    println!("Invalid location at {}, {}!", x, y);
-                    util::pause_console();
+                match self.try_place_ship(ship, axis, x, y) {
+                    Ok(_) => break,
+                    Err(_) => {
+                        println!("Invalid location at {}, {}!", x, y);
+                        util::pause_console();
+                    }
                 }
             }
         }
     }
 
     pub fn place_ships_randomly(&mut self) {
-        for i in 0..self.ships.len() {
+        for ship in self.ships.clone() {
             loop {
                 let larger_axis = util::rand_range(0, self.board.len());
-                let smaller_axis = util::rand_range(0, self.board.len() - self.ships[i].size);
+                let smaller_axis = util::rand_range(0, self.board.len() - ship.size);
 
                 let x: usize;
                 let y: usize;
-                let axis = match util::rand_range(0, 2) {
-                    0 => {
+                let axis = match rand::random() {
+                    true => {
                         x = smaller_axis;
                         y = larger_axis;
                         Axis::Horizontal
                     }
-                    _ => {
+                    false => {
                         x = larger_axis;
                         y = smaller_axis;
                         Axis::Vertical
                     }
                 };
 
-                if self.place_ship(i, axis, x, y) {
+                if self.try_place_ship(ship, axis, x, y).is_ok() {
                     break;
                 }
             }
         }
     }
 
-    pub fn place_ship(&mut self, ship: usize, axis: Axis, x: usize, y: usize) -> bool {
-        let mut valid = true;
-
-        for i in 0..self.ships[ship].size {
+    pub fn try_place_ship(&mut self, ship: Ship, axis: Axis, x: usize, y: usize) -> Result<(), ()> {
+        for i in 0..ship.size {
             if match axis {
                 Axis::Horizontal => self.board[y][x + i] != Cell::Empty,
                 Axis::Vertical => self.board[y + i][x] != Cell::Empty,
             } {
-                valid = false;
-                break;
+                return Err(());
             }
         }
 
-        if valid {
-            for i in 0..self.ships[ship].size {
-                match axis {
-                    Axis::Horizontal => self.board[y][x + i] = self.ships[ship].cell,
-                    Axis::Vertical => self.board[y + i][x] = self.ships[ship].cell,
-                }
+        for i in 0..ship.size {
+            match axis {
+                Axis::Horizontal => self.board[y][x + i] = ship.cell,
+                Axis::Vertical => self.board[y + i][x] = ship.cell,
             }
         }
 
-        valid
+        Ok(())
     }
 
     pub fn all_ships_sunk(&mut self) -> bool {
-        for ship in &self.ships {
-            if !ship.sunk {
-                return false;
-            }
-        }
-
-        return true;
+        self.ships.iter().all(|ship| ship.sunk())
     }
 }

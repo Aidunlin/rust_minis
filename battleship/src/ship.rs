@@ -6,12 +6,12 @@ pub enum Cell {
     Ship(char),
 }
 
+#[derive(Clone, Copy)]
 pub struct Ship {
     pub cell: Cell,
     pub name: &'static str,
     pub size: usize,
     pub hits: usize,
-    pub sunk: bool,
 }
 
 impl Ship {
@@ -21,7 +21,10 @@ impl Ship {
             name,
             size,
             hits: 0,
-            sunk: false,
         }
+    }
+
+    pub fn sunk(&self) -> bool {
+        self.hits >= self.size
     }
 }
