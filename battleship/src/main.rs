@@ -1,14 +1,9 @@
-mod game;
-mod player;
-mod ship;
-
-pub use console::{Key, Term};
-use game::Game;
-pub use player::{Axis, Player, PlayerType};
-pub use ship::{Cell, Ship};
+mod square;
+mod hex;
 
 fn main() {
-    Game::new(10).play();
+    // square::play();
+    hex::play();
 }
 
 pub mod util {

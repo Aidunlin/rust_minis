@@ -1,4 +1,5 @@
-use crate::{util, Cell, Key, Player, PlayerType, Ship};
+use super::{Cell, Key, Player, PlayerType, Ship};
+use crate::util;
 
 pub struct Game {
     human: Player,

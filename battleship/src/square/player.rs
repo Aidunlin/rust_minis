@@ -1,4 +1,5 @@
-use crate::{util, Cell, Ship};
+use super::{Cell, Ship};
+use crate::util;
 
 pub enum Axis {
     Horizontal,
