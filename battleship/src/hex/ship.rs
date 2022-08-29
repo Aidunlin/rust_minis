@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Clone)]
 pub enum ShipType {
     AircraftCarrier,
@@ -5,6 +7,18 @@ pub enum ShipType {
     WeaponsPlatform,
     Submarine,
     PatrolBoat,
+}
+
+impl ShipType {
+    pub fn to_char(&self) -> char {
+        match self {
+            Self::AircraftCarrier => 'C',
+            Self::Battleship => 'B',
+            Self::WeaponsPlatform => 'W',
+            Self::Submarine => 'S',
+            Self::PatrolBoat => 'P',
+        }
+    }
 }
 
 pub struct Ship {
@@ -30,7 +44,8 @@ impl Ship {
             ShipType::WeaponsPlatform => "Weapons Platform",
             ShipType::Submarine => "Submarine",
             ShipType::PatrolBoat => "Patrol Boat",
-        }.to_string();
+        }
+        .to_string();
 
         Self {
             ship_type,
@@ -38,5 +53,15 @@ impl Ship {
             hits: 0,
             name,
         }
+    }
+
+    pub fn new_set() -> Vec<Self> {
+        vec![
+            Self::new(ShipType::AircraftCarrier),
+            Self::new(ShipType::Battleship),
+            Self::new(ShipType::WeaponsPlatform),
+            Self::new(ShipType::Submarine),
+            Self::new(ShipType::PatrolBoat),
+        ]
     }
 }
